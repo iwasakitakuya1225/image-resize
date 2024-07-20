@@ -5,7 +5,6 @@ const s3 = new S3Client();
 const sharp = require('sharp');
 require('dotenv').config();
 
-
 const bucket = process.env.BUCKET
 
 function getResponseObject(body, format, maxAge = 31536000) {
