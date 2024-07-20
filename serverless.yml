@@ -121,7 +121,5 @@ custom:
   scripts:
     hooks:
       # origin-requestにsharpとdotenvをインストールし、.envファイルを作成する（lambda@edgeはlambda環境変数が使えないためこうしている）
-      # - "package:cleanup": rm .env && echo BUCKET="${self:provider.environment.BUCKET}" > .env && npm install --prefix ./origin-request --arch=x64 --platform=linux --target=12.5.0 ./origin-request
-      # "package:initialize": npm install --prefix ./origin-request --arch=x64 --platform=linux --target=12.5.0 ./origin-request && cp .env.${self:provider.stage} .env
       "package:cleanup": rm -f .env && echo BUCKET="${ssm(ap-northeast-1):/image-resize/${self:provider.stage}/bucket}" > .env
       "package:initialize": npm install --prefix ./origin-request --arch=x64 --platform=linux --target=12.5.0 ./origin-request
