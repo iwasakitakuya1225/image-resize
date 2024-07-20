@@ -1,0 +1,127 @@
+frameworkVersion: '4'
+useDotenv: true
+service: image-resize
+
+plugins:
+  - serverless-plugin-scripts
+  - '@silvermine/serverless-plugin-cloudfront-lambda-edge'
+  - serverless-aws-function-url-custom-domain
+  - serverless-plugin-ifelse
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  role: LambdaEdgeRole
+  stage: ${opt:stage, 'production'}
+  lambdaHashingVersion: 20201221
+  environment:
+    BUCKET: ${ssm(ap-northeast-1):/image-resize/${self:provider.stage}/bucket}
+    CUSTOM_DOMAIN: ${ssm(ap-northeast-1):/image-resize/${self:provider.stage}/custom-domain}
+    ACM_CERTIFICATE_ARN: ${ssm(ap-northeast-1):/image-resize/${self:provider.stage}/acm-certificate-arn}
+package:
+  individually: true
+  patterns:
+    - '!**'
+    - .env
+functions:
+  resize-viewer-request:
+    handler: viewer-request/index.handler
+    timeout: 5
+    memorySize: 128
+    lambdaAtEdge:
+      distribution: "TargetDistribution"
+      eventType: "viewer-request"
+    package:
+      patterns:
+        - viewer-request/**
+  resize-origin-request:
+    handler: origin-request/index.handler
+    timeout: 30
+    memorySize: 1536
+    lambdaAtEdge:
+      distribution: "TargetDistribution"
+      eventType: "origin-request"
+    package:
+      patterns:
+        - origin-request/**
+resources:
+  Resources:
+    LambdaEdgeRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+                  - edgelambda.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Policies:
+          - PolicyName: ImageResizeLambda${self:provider.stage}
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                    - "s3:GetObject"
+                    - "logs:PutLogEvents"
+                    - "logs:CreateLogGroup"
+                    - "logs:CreateLogStream"
+                  Resource:
+                    - arn:aws:s3:::${self:provider.environment.BUCKET}/*
+                    - arn:aws:logs:ap-northeast-1:*:*
+    TargetDistribution:
+      Type: "AWS::CloudFront::Distribution"
+      Properties:
+        DistributionConfig:
+          Comment: image resize ${self:provider.stage}
+          DefaultCacheBehavior:
+            TargetOriginId: "ImageBucketOrigin"
+            ViewerProtocolPolicy: "redirect-to-https"
+            DefaultTTL: 31536000
+            MaxTTL: 31536000 
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: "none"
+          Enabled: true
+          PriceClass: "PriceClass_200"
+          HttpVersion: "http2"
+          Origins:
+            - DomainName: ${self:provider.environment.BUCKET}.s3.ap-northeast-1.amazonaws.com
+              Id: ImageBucketOrigin
+              S3OriginConfig: {}
+              OriginAccessControlId:
+                Ref: CloudFrontOriginAccessControl
+          Aliases:
+            - ${self:provider.environment.CUSTOM_DOMAIN}
+          ViewerCertificate: 
+            AcmCertificateArn: ${self:provider.environment.ACM_CERTIFICATE_ARN}
+            MinimumProtocolVersion: "TLSv1.2_2021"
+            SslSupportMethod: "sni-only"
+    CloudFrontOriginAccessControl:
+      Type: AWS::CloudFront::OriginAccessControl
+      Properties:
+        OriginAccessControlConfig:
+          Name: OriginAccessControl-${self:provider.stage}
+          OriginAccessControlOriginType: s3
+          SigningBehavior: always
+          SigningProtocol: sigv4
+custom:
+  serverlessIfElse: 
+    - If: '"${self:provider.stage}" != "production"'
+      # 本番以外はドメインはそのままにする
+      Exclude:
+        - resources.Resources.TargetDistribution.Properties.DistributionConfig.Aliases
+        - resources.Resources.TargetDistribution.Properties.DistributionConfig.ViewerCertificate
+  scripts:
+    hooks:
+      # origin-requestにsharpとdotenvをインストールし、.envファイルを作成する（lambda@edgeはlambda環境変数が使えないためこうしている）
+      # - "package:cleanup": rm .env && echo BUCKET="${self:provider.environment.BUCKET}" > .env && npm install --prefix ./origin-request --arch=x64 --platform=linux --target=12.5.0 ./origin-request
+      # "package:initialize": npm install --prefix ./origin-request --arch=x64 --platform=linux --target=12.5.0 ./origin-request && cp .env.${self:provider.stage} .env
+      "package:cleanup": rm -f .env && echo BUCKET="${ssm(ap-northeast-1):/image-resize/${self:provider.stage}/bucket}" > .env
+      "package:initialize": npm install --prefix ./origin-request --arch=x64 --platform=linux --target=12.5.0 ./origin-request

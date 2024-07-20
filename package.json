@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "@silvermine/serverless-plugin-cloudfront-lambda-edge": "2.2.3",
+    "serverless-aws-function-url-custom-domain": "^0.9.29",
+    "serverless-cloudfront-distribution-certificate": "^0.0.8",
+    "serverless-domain-manager": "^7.3.8",
+    "serverless-plugin-ifelse": "^1.0.7",
+    "serverless-plugin-scripts": "1.0.2"
+  }
+}
