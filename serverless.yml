@@ -1,4 +1,3 @@
-frameworkVersion: '4'
 useDotenv: true
 service: image-resize
 
