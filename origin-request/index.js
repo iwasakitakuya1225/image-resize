@@ -122,11 +122,11 @@ exports.handler = async (event, context, callback) => {
     sharpBody.resize(resizeWidth, resizeHeight).rotate()
     if (isAvif) {
       format = 'avif'
-      sharpBody.avif({ quality, lossless: true })
+      sharpBody.avif({ quality })
     } else if (isWebp) {
       // webp対応しているブラウザの場合はwebpにする
       format = 'webp'
-      sharpBody.webp({ quality, lossless: true })
+      sharpBody.webp({ quality })
     } else if (format === 'png') {
       quality = 10 - parseInt(quality / 10)
       sharpBody.png({ compressionLevel: quality })
