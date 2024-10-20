@@ -47,7 +47,7 @@ exports.handler = async (event, context, callback) => {
   
     const isAvif = params.has('avif') && params.get('avif') == '1' ? true : false;
     const isWebp = params.has('webp') && params.get('webp') == '1' ? true : false;
-    const quality = params.has('q') ? parseInt(params.get('q')) : 80;
+    let quality = params.has('q') ? parseInt(params.get('q')) : 80;
   
     let isWidth = false
     let length = 0
@@ -92,7 +92,7 @@ exports.handler = async (event, context, callback) => {
       )
     }
     const body = await result.Body.transformToByteArray()
-    const sharpBody = sharp(body, {animated: true, pages: -1});
+    let sharpBody = sharp(body, {animated: true, pages: -1});
     const metadata = await sharpBody.metadata();
     // 画像をリサイズする
     let format = metadata.format
@@ -119,23 +119,23 @@ exports.handler = async (event, context, callback) => {
       resizeWidth = parseInt(resizeHeight / originalHeight * originalWidth);
     }
   
-    sharpBody.resize(resizeWidth, resizeHeight).rotate()
+    sharpBody = sharpBody.resize(resizeWidth, resizeHeight).rotate()
     if (isAvif) {
       format = 'avif'
-      sharpBody.avif({ quality, lossless: true })
+      sharpBody = sharpBody.avif({ quality })
     } else if (isWebp) {
       // webp対応しているブラウザの場合はwebpにする
       format = 'webp'
-      sharpBody.webp({ quality, lossless: true })
+      sharpBody = sharpBody.webp({ quality })
     } else if (format === 'png') {
       quality = 10 - parseInt(quality / 10)
-      sharpBody.png({ compressionLevel: quality })
+      sharpBody = sharpBody.png({ compressionLevel: quality })
     } else if (['jpeg', 'jpg'].includes(format)) {
-      sharpBody.jpeg({ quality })
+      sharpBody = sharpBody.jpeg({ quality })
     } else if (format === 'svg') {
-      sharpBody.svg({ quality })
+      sharpBody = sharpBody.svg({ quality })
     } else if (format === 'gif') {
-      sharpBody.gif({ quality })
+      sharpBody = sharpBody.gif({ quality })
     }
     console.log(`resize image. width:${resizeWidth} height:${resizeHeight} format:${format} quality:${quality}`);
     const buffer = await sharpBody.toBuffer();
